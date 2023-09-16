@@ -1,51 +1,45 @@
 from flask import Flask, request, jsonify
 
-app=Flask(__name__)
+app = Flask(__name__)
 
 import fitz
 import requests
 import io
 
-
 @app.route("/")
 def home():
     return "Home"
 
-
-
-@app.route("/get-pdf",methods=["POST"])
+@app.route("/get-pdf", methods=["PUT"])
 def pdf():
-    # URL of the online PDF file
-   
-    #pdf_url = 'https://media.geeksforgeeks.org/wp-content/uploads/d.pdf'
+    data = request.get_json()
+    pdf_url = data.get('link')
 
-    url = request.get_json()
-    ans=url['link']
-    print(ans)
+    if pdf_url:
+        try:
+            # Download the PDF
+            response = requests.get(pdf_url)
+            response.raise_for_status()
+            pdf_bytes = response.content
 
-    # if url:
-    #     url=url
-    # else:
-    #     url=pdf_url
+            # Convert bytes to a file-like object
+            pdf_file = io.BytesIO(pdf_bytes)
 
-    # Download the PDF
-    response = requests.get(ans)
-    pdf_bytes = response.content
+            # Create a PDF document object
+            pdf_document = fitz.open(stream=pdf_file, filetype='pdf')
 
-    # Convert bytes to a file-like object
-    pdf_file = io.BytesIO(pdf_bytes)
+            # Read each page of the PDF
+            pdf_text = []
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                text = page.get_text()
+                pdf_text.append(text)
 
-    # Create a PDF document object
-    pdf_document = fitz.open(stream=pdf_file, filetype='pdf')
-
-    # Read each page of the PDF
-    ans=[]
-    for page_num in range(len(pdf_document)):
-        page = pdf_document[page_num]
-        text = page.get_text()
-        ans.append(text)
-    return ans
+            return jsonify({'pdf_text': pdf_text})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    else:
+        return jsonify({'error': 'Missing or invalid "link" parameter in JSON data'}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)
-
